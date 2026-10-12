@@ -8,12 +8,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Настройка промежуточного ПО для работы CORS, обработки JSON и раздачи файлов фронтенда
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Переменные подключения к базе данных Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MONLIX_SECRET = process.env.MONLIX_SECRET || 'any';
@@ -22,61 +20,59 @@ const supabase = (SUPABASE_URL && SUPABASE_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_KEY) 
   : null;
 
-// 1. ПОСТБЭК ЭНДПОИНТ (ПРИЕМ НАЧИСЛЕНИЙ ОТ РЕКЛАМНЫХ СЕТЕЙ)
+// 1. ПОСТБЭК ЭНДПОИНТ (ПРИЕМ НАЧИСЛЕНИЙ)
 app.get('/api/postback', async (req, res) => {
     try {
         const { user_id, amount, trans_id, secret } = req.query;
 
-        // Валидация входных данных
         if (!user_id || !amount || !trans_id) {
             return res.status(400).send('Missing required parameters');
         }
 
-        // Проверка соответствия секретного ключа
         if (secret && secret !== MONLIX_SECRET) {
             return res.status(403).send('Invalid secret');
         }
 
         const amountUsd = parseFloat(amount);
-        const usdToUser = amountUsd * 0.60; // 40% удерживается админу, 60% начисляется юзеру
-        const tonAmount = parseFloat((usdToUser / 5.20).toFixed(4)); // Конвертация по курсу 5.20
+        const usdToUser = amountUsd * 0.60; 
+        const tonAmount = parseFloat((usdToUser / 5.20).toFixed(4)); 
 
         if (!supabase) {
-            console.log(`[LOCAL/DEV MODE SUCCESS] User: ${user_id} | +${tonAmount} TON`);
+            console.log(`[DEV MODE] User: ${user_id} | +${tonAmount} TON`);
             return res.send('OK');
         }
 
-        // Дедупликация (Защита от повторного выполнения одного и того же оффера)
+        // Защита от дубликатов транзакций
         const { data: existingTx } = await supabase
             .from('completed_offers')
             .select('transaction_id')
             .eq('transaction_id', trans_id)
-            .single();
+            .maybeSingle();
 
         if (existingTx) {
-            return res.send('OK'); // Если транзакция уже есть, возвращаем OK без начисления
+            return res.send('OK'); 
         }
 
-        // Чтение текущего состояния кошелька из Supabase
+        // Чтение текущего баланса из Supabase
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
             .eq('telegram_id', user_id)
-            .single();
+            .maybeSingle();
 
         const currentBalance = user ? parseFloat(user.balance_ton) : 0.0;
         const newBalance = currentBalance + tonAmount;
 
-        // Сохранение обновленного баланса пользователя
+        // Запись нового баланса
         await supabase
             .from('users')
-            .upsert({ telegram_id: user_id, balance_ton: newBalance, updated_at: new Date() });
+            .upsert({ telegram_id: parseInt(user_id), balance_ton: newBalance, updated_at: new Date() });
 
-        // Фиксация записи о завершенной транзакции
+        // Логирование транзакции
         await supabase
             .from('completed_offers')
             .insert({
-                telegram_id: user_id,
+                telegram_id: parseInt(user_id),
                 transaction_id: trans_id,
                 amount_usd: amountUsd,
                 amount_ton: tonAmount
@@ -91,7 +87,7 @@ app.get('/api/postback', async (req, res) => {
     }
 });
 
-// 2. ЭНДПОИНТ ДЛЯ ОТОБРАЖЕНИЯ БАЛАНСА В МИНИ-ПРИЛОЖЕНИИ
+// 2. ЭНДПОИНТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА В МИНИ-ПРИЛОЖЕНИИ
 app.get('/api/user-balance', async (req, res) => {
     try {
         const { userId } = req.query;
@@ -105,18 +101,18 @@ app.get('/api/user-balance', async (req, res) => {
             .from('users')
             .select('balance_ton')
             .eq('telegram_id', userId)
-            .single();
+            .maybeSingle();
 
         res.json({
             telegram_id: userId,
             balance_ton: user ? user.balance_ton : 0.0000
         });
     } catch (error) {
+        console.error('[BALANCE FETCH ERROR]', error);
         res.status(500).json({ error: 'Internal error' });
     }
 });
 
-// Старт веб-сервера
 app.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
