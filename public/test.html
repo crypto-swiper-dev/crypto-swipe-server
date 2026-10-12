@@ -8,11 +8,12 @@
     <style>
         body { font-family: sans-serif; background: #0f0c20; color: #fff; text-align: center; padding: 40px; }
         button { background: #00ffcc; color: #000; padding: 20px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; }
+        button:disabled { background: #3d356d; color: #7f7f7f; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <h2>Проверка начисления TON</h2>
-    <h1 id="view-balance">Загрузка...</h1>
+    <h1 id="view-balance">0.0000 TON</h1>
     <br><br>
     <button id="click-btn">Кликнуть для начисления +0.2885 TON</button>
 
@@ -28,44 +29,46 @@
         async function load() {
             try {
                 const res = await fetch(`${host}/api/user-balance?userId=${uid}`);
+                if (!res.ok) {
+                    document.getElementById('view-balance').innerText = "0.0000 TON";
+                    return;
+                }
                 const data = await res.json();
-                
-                // Выводим в консоль браузера для проверки, что прислал сервер
-                console.log("Ответ сервера по балансу:", data);
-
-                // Жесткая проверка: смотрим любое возможное поле баланса в ответе
                 if (data && data.balance_ton !== undefined) {
                     document.getElementById('view-balance').innerText = `${parseFloat(data.balance_ton).toFixed(4)} TON`;
-                } else if (data && data.balance !== undefined) {
-                    document.getElementById('view-balance').innerText = `${parseFloat(data.balance).toFixed(4)} TON`;
                 } else {
-                    document.getElementById('view-balance').innerText = "Ошибка формата";
+                    document.getElementById('view-balance').innerText = "0.0000 TON";
                 }
             } catch(e) { 
-                document.getElementById('view-balance').innerText = "Ошибка сети"; 
-                console.error(e);
+                document.getElementById('view-balance').innerText = "0.0000 TON"; 
+                console.error("Ошибка чтения баланса:", e);
             }
         }
 
         document.getElementById('click-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('click-btn');
             try {
+                btn.innerText = "Отправка...";
+                btn.disabled = true;
+
                 const tid = `click_${Date.now()}`;
                 const url = `${host}/api/postback?user_id=${uid}&amount=2.50&trans_id=${tid}&secret=any`;
-                
-                document.getElementById('click-btn').innerText = "Отправка...";
                 
                 const res = await fetch(url);
                 const txt = await res.text();
                 
                 alert("Ответ сервера: " + txt);
-                document.getElementById('click-btn').innerText = "Кликнуть для начисления +0.2885 TON";
+                btn.innerText = "Кликнуть для начисления +0.2885 TON";
+                btn.disabled = false;
                 await load();
             } catch(e) { 
                 alert("Ошибка запроса: " + e.message); 
-                document.getElementById('click-btn').innerText = "Кликнуть для начисления +0.2885 TON";
+                btn.innerText = "Кликнуть для начисления +0.2885 TON";
+                btn.disabled = false;
             }
         });
 
+        // Запуск первой проверки
         load();
     </script>
 </body>
