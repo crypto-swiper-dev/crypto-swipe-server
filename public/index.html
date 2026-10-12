@@ -18,100 +18,58 @@
             min-height: 100vh;
             box-sizing: border-box;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
+        .header { text-align: center; margin-bottom: 15px; }
         .wallet-card {
             background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
             border-radius: 20px;
-            padding: 25px;
+            padding: 20px;
             width: 90%;
             max-width: 350px;
             box-shadow: 0 10px 25px rgba(0, 114, 255, 0.3);
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
-        .balance-title {
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.8;
-            margin-bottom: 10px;
-        }
-        .balance-value {
-            font-size: 36px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .balance-usd {
-            font-size: 16px;
-            opacity: 0.9;
-        }
-        .swipe-container {
-            position: relative;
-            width: 90%;
-            max-width: 350px;
-            height: 300px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+        .balance-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 5px; }
+        .balance-value { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
+        .balance-usd { font-size: 14px; opacity: 0.9; }
+        
+        .main-container { width: 90%; max-width: 350px; display: flex; flex-direction: column; gap: 20px; }
+        
         .card {
-            position: absolute;
-            width: 100%;
-            height: 100%;
             background: #1f1a3a;
             border: 2px solid #3d356d;
-            border-radius: 25px;
+            border-radius: 20px;
             padding: 20px;
-            box-sizing: border-box;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            gap: 15px;
         }
-        .card-title {
-            font-size: 22px;
-            font-weight: bold;
-            color: #00ffcc;
-        }
-        .card-reward {
-            background: rgba(0, 255, 204, 0.1);
-            color: #00ffcc;
-            padding: 8px 15px;
-            border-radius: 50px;
-            align-self: flex-start;
-            font-weight: bold;
-        }
-        .btn-action {
-            background: #00ffcc;
-            color: #0f0c20;
-            border: none;
-            padding: 15px;
-            border-radius: 15px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            text-align: center;
-            transition: background 0.2s;
+        .card-title { font-size: 20px; font-weight: bold; color: #00ffcc; }
+        .card-reward { background: rgba(0, 255, 204, 0.1); color: #00ffcc; padding: 6px 12px; border-radius: 50px; align-self: flex-start; font-weight: bold; font-size: 14px; }
+        
+        .input-field {
             width: 100%;
+            padding: 12px;
+            background: #0f0c20;
+            border: 2px solid #3d356d;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 14px;
             box-sizing: border-box;
+            outline: none;
         }
-        .btn-action:hover {
-            background: #00ccaa;
+        .input-field:focus { border-color: #00ffcc; }
+        
+        .btn-action {
+            background: #00ffcc; color: #0f0c20; border: none; padding: 14px; border-radius: 12px;
+            font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; transition: background 0.2s; width: 100%;
         }
-        .btn-action:disabled {
-            background: #3d356d;
-            color: #7f7f7f;
-            cursor: not-allowed;
-        }
-        #status-log {
-            margin-top: 15px;
-            font-size: 13px;
-            color: #00ffcc;
-            opacity: 0.8;
-        }
+        .btn-action:hover { background: #00ccaa; }
+        .btn-action:disabled { background: #3d356d; color: #7f7f7f; cursor: not-allowed; }
+        
+        .btn-withdraw { background: #ff007f; color: #fff; }
+        .btn-withdraw:hover { background: #e00070; }
     </style>
 </head>
 <body>
@@ -126,38 +84,41 @@
         <div id="balance-usd" class="balance-usd">≈ \$0.00 USD</div>
     </div>
 
-    <div class="swipe-container">
+    <div class="main-container">
+        <!-- БЛОК ЗАДАНИЯ -->
         <div class="card">
-            <div>
-                <div class="card-title">Тестовое задание Monlix</div>
-                <p>Выполните микро-задачу, чтобы протестировать моментальное зачисление баланса в TON.</p>
-            </div>
+            <div class="card-title">Тестовое задание Monlix</div>
+            <p style="margin: 0; font-size: 14px; opacity: 0.8;">Выполните микро-задачу для моментального начисления теста баланса в TON.</p>
             <div class="card-reward">+0.2885 TON</div>
             <button id="offer-btn" class="btn-action">Выполнить оффер</button>
         </div>
+
+        <!-- БЛОК ВЫВОДА СРЕДСТВ -->
+        <div class="card">
+            <div class="card-title">Вывод средств</div>
+            <p style="margin: 0; font-size: 14px; opacity: 0.8;">Минимум для вывода: 0.5000 TON. Заявка обрабатывается администратором.</p>
+            <input type="text" id="wallet-input" class="input-field" placeholder="Введите ваш TON адрес (UQ...)">
+            <button id="withdraw-btn" class="btn-action btn-withdraw">Вывести все TON</button>
+        </div>
     </div>
-    
-    <div id="status-log">Система: Готова к работе</div>
 
     <script>
-        const tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) { tg.expand(); }
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
         const host = window.location.origin;
-        const userId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999"; 
-
-        function logStatus(text) {
-            document.getElementById('status-log').innerText = "Система: " + text;
-        }
+        const userId = tg.initDataUnsafe?.user?.id || "777999"; 
+        let currentBalanceTon = 0;
 
         async function fetchBalance() {
             try {
                 const response = await fetch(`${host}/api/user-balance?userId=${userId}`);
                 const data = await response.json();
                 if (data && data.balance_ton !== undefined) {
-                    const ton = parseFloat(data.balance_ton).toFixed(4);
-                    const usd = (ton * 5.20).toFixed(2);
-                    document.getElementById('balance-ton').innerText = `${ton} TON`;
+                    currentBalanceTon = parseFloat(data.balance_ton);
+                    const tonFormatted = currentBalanceTon.toFixed(4);
+                    const usd = (currentBalanceTon * 5.20).toFixed(2);
+                    document.getElementById('balance-ton').innerText = `${tonFormatted} TON`;
                     document.getElementById('balance-usd').innerText = `≈ $${usd} USD`;
                 }
             } catch (err) {
@@ -165,38 +126,51 @@
             }
         }
 
+        // Кнопка выполнения оффера
         document.getElementById('offer-btn').addEventListener('click', async () => {
             const btn = document.getElementById('offer-btn');
-            btn.innerText = "Отправка...";
-            btn.disabled = true;
-            logStatus("Отправка данных рекламодателя...");
-
-            const timeout = setTimeout(() => {
-                btn.innerText = "Выполнить оффер";
-                btn.disabled = false;
-                logStatus("Запрос обрабатывается в фоне...");
-            }, 3000);
-
             try {
+                btn.innerText = "Отправка..."; btn.disabled = true;
                 const transId = `live_click_${Date.now()}`;
                 const url = `${host}/api/postback?user_id=${userId}&amount=2.50&trans_id=${transId}&secret=any`;
                 
                 const response = await fetch(url);
                 const text = await response.text();
                 
-                clearTimeout(timeout);
-                logStatus("Успешно зачислено! Обновление...");
+                if (text === "OK") {
+                    alert("Успешно зачислено! 🚀");
+                    await fetchBalance();
+                } else { alert("Ошибка сервера: " + text); }
+            } catch (err) { alert("Ошибка сети."); }
+            btn.innerText = "Выполнить оффер"; btn.disabled = false;
+        });
+
+        // Кнопка вывода средств
+        document.getElementById('withdraw-btn').addEventListener('click', async () => {
+            const wallet = document.getElementById('wallet-input').value.trim();
+            const btn = document.getElementById('withdraw-btn');
+            
+            if (!wallet) { return alert("Пожалуйста, введите адрес кошелька!"); }
+            if (currentBalanceTon < 0.5000) { return alert("Недостаточно средств! Минимальная сумма вывода 0.5000 TON"); }
+
+            try {
+                btn.innerText = "Обработка..."; btn.disabled = true;
+                const response = await fetch(`${host}/api/withdraw`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId, walletAddress: wallet, amount: currentBalanceTon })
+                });
                 
-                btn.innerText = "Выполнить оффер";
-                btn.disabled = false;
-                
-                await fetchBalance();
-            } catch (err) {
-                clearTimeout(timeout);
-                logStatus("Ошибка сети.");
-                btn.innerText = "Выполнить оффер";
-                btn.disabled = false;
-            }
+                const data = await response.json();
+                if (data.success) {
+                    alert(`Заявка на вывод ${currentBalanceTon.toFixed(4)} TON успешно создана! 🚀`);
+                    document.getElementById('wallet-input').value = "";
+                    await fetchBalance();
+                } else {
+                    alert("Ошибка вывода: " + data.error);
+                }
+            } catch (err) { alert("Ошибка сети при выводе."); }
+            btn.innerText = "Вывести все TON"; btn.disabled = false;
         });
 
         fetchBalance();
