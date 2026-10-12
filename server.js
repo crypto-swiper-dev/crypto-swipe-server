@@ -30,10 +30,8 @@ const { Pool } = pg;
 console.log("=== ДИАГНОСТИКА БАЗЫ ДАННЫХ ===");
 if (process.env.DATABASE_URL) {
     console.log("Status: Переменная DATABASE_URL найдена на хостинге!");
-    // Показываем только начало строки для безопасности логов
-    console.log("Start of URL:", process.env.DATABASE_URL.substring(0, 20) + "...");
 } else {
-    console.log("Status: ВНИМАНИЕ! Переменная DATABASE_URL отсутствует или пустая в настройках Render!");
+    console.log("Status: ВНИМАНИЕ! Переменная DATABASE_URL отсутствует в настройках Render!");
 }
 console.log("===============================");
 
