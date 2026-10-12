@@ -87,6 +87,7 @@ app.get('/api/user-balance', async (req, res) => {
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
         
         let balance = 0.0000;
+        // 🛠️ ИСПРАВЛЕНО: Добавлен строгий индекс [0] для чтения первой строки
         if (userCheck.rows && userCheck.rows.length > 0) {
             if (userCheck.rows[0].balance_ton !== null) {
                 balance = parseFloat(userCheck.rows[0].balance_ton);
@@ -125,6 +126,7 @@ app.post('/api/withdraw', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Пользователь не найден' });
         }
 
+        // 🛠️ ИСПРАВЛЕНО: Добавлен строгий индекс [0] для проверки баланса
         const userBalance = parseFloat(userCheck.rows[0].balance_ton);
 
         if (userBalance < withdrawAmount || withdrawAmount < 0.5000) {
