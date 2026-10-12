@@ -72,7 +72,7 @@ app.get('/api/postback', async (req, res) => {
 
         const targetUserId = parseInt(user_id, 10);
 
-        // 1. Защита от дубликатов транзакций (Используем чистые одинарные кавычки)
+        // 1. Защита от дубликатов транзакций
         const txCheck = await pool.query('SELECT transaction_id FROM completed_offers WHERE transaction_id = $1', [trans_id]);
         if (txCheck.rows.length > 0) {
             return res.send('OK'); 
@@ -87,11 +87,11 @@ app.get('/api/postback', async (req, res) => {
         await pool.query(txInsertQuery, [targetUserId, trans_id, amountUsd, tonAmount]);
 
         console.log('[DATABASE SUCCESS] ID: ' + targetUserId + ' | TON: +' + tonAmount);
-        res.send('OK');
+        return res.send('OK');
 
     } catch (error) {
         console.error('[POSTBACK ERROR]', error);
-        res.status(500).send('ERROR');
+        return res.status(500).send('ERROR');
     }
 });
 
@@ -110,17 +110,18 @@ app.get('/api/user-balance', async (req, res) => {
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
         
         let balance = 0.0000;
-        if (userCheck.rows.length > 0) {
+        // ИСПРАВЛЕНИЕ: Читаем баланс из первой строки массива rows[0]
+        if (userCheck.rows.length > 0 && userCheck.rows[0].balance_ton !== null) {
             balance = parseFloat(userCheck.rows[0].balance_ton);
         }
 
-        res.json({
+        return res.json({
             telegram_id: targetUserId,
             balance_ton: balance
         });
     } catch (error) {
         console.error('[BALANCE FETCH ERROR]', error);
-        res.status(500).json({ error: 'Internal error' });
+        return res.status(500).json({ error: 'Internal error' });
     }
 });
 
