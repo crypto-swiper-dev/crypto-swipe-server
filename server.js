@@ -1,186 +1,152 @@
 /**
- * Monlix Postback & Telegram Mini App Backend Server
- * 
- * Стек: Node.js, Express, Cors
- * Назначение:
- * 1. Обработка Postback запросов от CPA-оффервола Monlix (GET /api/postback)
- * 2. Безопасность: валидация секретного ключа и защита от повторных начислений (дедупликация trans_id)
- * 3. Экономика: удержание комиссии платформы 40% (пользователю 60%), конвертация в TON (1 TON = 5.20 USD)
- * 4. Локальное хранение балансов пользователей в TON
- * 5. Эндпоинты для Telegram Mini App: получение баланса пользователя и списка доступных заданий
+ * Monlix Postback & Telegram Mini App Backend Server (Node.js / Express)
+ * Интеграция с базой данных Supabase (PostgreSQL)
+ *
+ * Стек: Node.js, Express, Cors, @supabase/supabase-js, dotenv
  */
 
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
 
 // Инициализация Express приложения
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Подключение middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ==========================================
-// КОНФИГУРАЦИЯ И ЭКОНОМИКА
+// КОНФИГУРАЦИЯ И ПОДКЛЮЧЕНИЕ К SUPABASE
 // ==========================================
-
-// Секретный ключ для верификации запросов от оффервола Monlix
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MONLIX_SECRET = process.env.MONLIX_SECRET || 'SECRET_KEY_12345';
 
-// Доля выплаты пользователю (60% от суммы задания, 40% удерживает сервис)
-const USER_REWARD_PERCENTAGE = 0.60;
+// Экономические параметры
+const USER_REWARD_PERCENTAGE = 0.60; // 60% пользователю (40% сервису)
+const TON_RATE_USD = 5.20;           // 1 TON = 5.20 USD
 
-// Фиксированный обменный курс TON к USD (1 TON = 5.20 USD)
-const TON_RATE_USD = 5.20;
-
-// ==========================================
-// ЛОКАЛЬНАЯ БАЗА ДАННЫХ (IN-MEMORY ДЛЯ MVP)
-// ==========================================
-
-// Балансы пользователей в TON: { [userId: string]: number }
-const userBalances = {
-  '123456789': 0.5000,
-  '987654321': 1.2500
-};
-
-// Список обработанных уникальных идентификаторов транзакций (дедупликация)
-const completedTransactions = [
-  'tx_init_sample_001'
-];
-
-// Детальный реестр транзакций для истории и аудита
-const transactionHistory = [
-  {
-    trans_id: 'tx_init_sample_001',
-    user_id: '123456789',
-    amount_usd: 4.3333,
-    usd_to_user: 2.6000,
-    ton_to_user: 0.5000,
-    timestamp: new Date().toISOString()
-  }
-];
-
-// Список офферов (задач) по умолчанию для Telegram Mini App
-const mockTasks = [
-  {
-    id: 'task_001',
-    title: 'Установка приложения OKX Crypto Exchange',
-    description: 'Установите приложение и пройдите быструю верификацию уровня 1',
-    category: 'Finance / Apps',
-    amount_usd: 3.50,
-    user_payout_usd: 2.10,
-    user_payout_ton: 0.4038,
-    action_url: 'https://monlix.com/offer/okx-app-install',
-    icon_type: 'app',
-    badge: 'Популярное'
-  },
-  {
-    id: 'task_002',
-    title: 'Опрос: Финансовые привычки и криптовалюта',
-    description: 'Пройдите короткий 5-минутный социологический опрос от Kantar',
-    category: 'Surveys',
-    amount_usd: 1.20,
-    user_payout_usd: 0.72,
-    user_payout_ton: 0.1385,
-    action_url: 'https://monlix.com/offer/kantar-survey-2026',
-    icon_type: 'survey',
-    badge: 'Быстро'
-  },
-  {
-    id: 'task_003',
-    title: 'Достичь 15 уровня в игре Lords Mobile',
-    description: 'Скачайте игру на Android или iOS и прокачайте замок до 15 уровня за 7 дней',
-    category: 'Gaming',
-    amount_usd: 12.00,
-    user_payout_usd: 7.20,
-    user_payout_ton: 1.3846,
-    action_url: 'https://monlix.com/offer/lords-mobile-level15',
-    icon_type: 'game',
-    badge: 'Высокая выплата'
-  },
-  {
-    id: 'task_004',
-    title: 'Регистрация и подписка на Telegram канал партнера',
-    description: 'Подпишитесь на новостной канал аналитики и оставайтесь подписанным 3 дня',
-    category: 'Social',
-    amount_usd: 0.50,
-    user_payout_usd: 0.30,
-    user_payout_ton: 0.0577,
-    action_url: 'https://monlix.com/offer/tg-channel-sub',
-    icon_type: 'social',
-    badge: 'Легко'
-  },
-  {
-    id: 'task_005',
-    title: 'Тест-драйв VPN сервиса Proton',
-    description: 'Зарегистрируйте бесплатный аккаунт и активируйте 7-дневный пробный период',
-    category: 'Security',
-    amount_usd: 2.00,
-    user_payout_usd: 1.20,
-    user_payout_ton: 0.2308,
-    action_url: 'https://monlix.com/offer/proton-vpn-trial',
-    icon_type: 'service',
-    badge: 'Топ'
-  }
-];
+// Создание клиента Supabase
+const supabase = (SUPABASE_URL && SUPABASE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
 
 // ==========================================
 // 1. POSTBACK ЭНДПОИНТ ОТ MONLIX
 // ==========================================
-app.get('/api/postback', (req, res) => {
-  const { user_id, amount, trans_id, secret } = req.query;
+app.get('/api/postback', async (req, res) => {
+  try {
+    const { user_id, amount, trans_id, secret } = req.query;
 
-  // 1. Проверка обязательных параметров
-  if (!user_id || amount === undefined || !trans_id || !secret) {
-    return res.status(400).send('Missing required parameters (user_id, amount, trans_id, secret are required)');
-  }
+    // 1. Проверка обязательных параметров
+    if (!user_id || amount === undefined || !trans_id) {
+      return res.status(400).send('Missing required parameters (user_id, amount, trans_id are required)');
+    }
 
-  // 2. Защита и проверка безопасности: валидация секретного ключа
-  if (secret !== MONLIX_SECRET) {
-    console.warn(`[POSTBACK ERROR] Неверный секрет: ${secret}`);
-    return res.status(403).send('Invalid secret');
-  }
+    // 2. Проверка секрета Monlix
+    if (secret && secret !== MONLIX_SECRET) {
+      return res.status(403).send('Invalid secret');
+    }
 
-  const cleanTransId = String(trans_id).trim();
-  const cleanUserId = String(user_id).trim();
-  const parsedAmount = parseFloat(String(amount));
+    const cleanTransId = String(trans_id).trim();
+    const cleanUserId = String(user_id).trim();
+    const parsedAmount = parseFloat(String(amount));
 
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    return res.status(400).send('Invalid amount value');
-  }
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).send('Invalid amount value');
+    }
 
-  // 3. Защита от повторных начислений (дедупликация trans_id)
-  if (completedTransactions.includes(cleanTransId)) {
-    console.log(`[POSTBACK DUP] Транзакция ${cleanTransId} уже обработана. Ответ OK без начисления.`);
+    if (!supabase) {
+      return res.status(500).send('Database connection error: SUPABASE_URL and SUPABASE_KEY must be configured in .env');
+    }
+
+    // 3. Защита от повторных начислений: проверка транзакции в таблице completed_offers
+    const { data: existingOffer, error: checkError } = await supabase
+      .from('completed_offers')
+      .select('trans_id')
+      .eq('trans_id', cleanTransId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('[SUPABASE ERROR] Ошибка проверки trans_id:', checkError.message);
+      return res.status(500).send('Database query error');
+    }
+
+    // Если транзакция уже существует, возвращаем "OK" (дедупликация), не начисляя повторно
+    if (existingOffer) {
+      console.log(`[POSTBACK DUP] Транзакция ${cleanTransId} уже обработана. Баланс повторно не начисляется.`);
+      return res.status(200).send('OK');
+    }
+
+    // 4. Экономика: удержание комиссии 40% (пользователю 60%) и перевод в TON (1 TON = 5.20 USD)
+    const usdToUser = parsedAmount * USER_REWARD_PERCENTAGE;
+    const rawTonToUser = usdToUser / TON_RATE_USD;
+    const tonToUser = Math.round(rawTonToUser * 10000) / 10000;
+
+    // 5. Получение текущего баланса пользователя из таблицы 'users'
+    const { data: userData, error: userFetchError } = await supabase
+      .from('users')
+      .select('balance_ton')
+      .eq('telegram_id', cleanUserId)
+      .maybeSingle();
+
+    if (userFetchError) {
+      console.error('[SUPABASE ERROR] Ошибка чтения баланса:', userFetchError.message);
+      return res.status(500).send('Database read error');
+    }
+
+    const currentBalance = userData?.balance_ton ? parseFloat(String(userData.balance_ton)) : 0.0000;
+    const updatedBalance = Math.round((currentBalance + tonToUser) * 10000) / 10000;
+
+    // 6. UPSERT в таблицу 'users': добавление пользователя или обновление существующего balance_ton
+    const { error: upsertError } = await supabase
+      .from('users')
+      .upsert(
+        {
+          telegram_id: cleanUserId,
+          balance_ton: updatedBalance,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'telegram_id' }
+      );
+
+    if (upsertError) {
+      console.error('[SUPABASE ERROR] Ошибка UPSERT в users:', upsertError.message);
+      return res.status(500).send('Database update error');
+    }
+
+    // 7. Сохранение транзакции в таблицу 'completed_offers' для защиты от повторных начислений
+    const { error: insertOfferError } = await supabase
+      .from('completed_offers')
+      .insert([
+        {
+          trans_id: cleanTransId,
+          telegram_id: cleanUserId,
+          amount_usd: parsedAmount,
+          ton_amount: tonToUser,
+          created_at: new Date().toISOString()
+        }
+      ]);
+
+    if (insertOfferError) {
+      if (insertOfferError.code === '23505') {
+        return res.status(200).send('OK');
+      }
+      console.error('[SUPABASE ERROR] Ошибка записи в completed_offers:', insertOfferError.message);
+      return res.status(500).send('Database insert error');
+    }
+
+    console.log(`[POSTBACK SUCCESS] Telegram ID: ${cleanUserId} | Trans: ${cleanTransId} | TON: +${tonToUser} | Баланс: ${updatedBalance}`);
     return res.status(200).send('OK');
+
+  } catch (err) {
+    console.error('[POSTBACK EXCEPTION]', err);
+    return res.status(500).send('Internal Server Error');
   }
-
-  // 4. Экономика и конвертация в TON (удержание комиссии 40%, пользователю 60%)
-  const usdToUser = parsedAmount * USER_REWARD_PERCENTAGE;
-  const rawTonToUser = usdToUser / TON_RATE_USD;
-  const tonToUser = Math.round(rawTonToUser * 10000) / 10000;
-
-  // 5. Сохранение транзакции и обновление баланса пользователя
-  completedTransactions.push(cleanTransId);
-
-  const currentBalance = userBalances[cleanUserId] || 0;
-  const updatedBalance = Math.round((currentBalance + tonToUser) * 10000) / 10000;
-  userBalances[cleanUserId] = updatedBalance;
-
-  // Запись в реестр транзакций
-  transactionHistory.unshift({
-    trans_id: cleanTransId,
-    user_id: cleanUserId,
-    amount_usd: parsedAmount,
-    usd_to_user: Math.round(usdToUser * 10000) / 10000,
-    ton_to_user: tonToUser,
-    timestamp: new Date().toISOString()
-  });
-
-  console.log(`[POSTBACK SUCCESS] ID: ${cleanUserId} | Tx: ${cleanTransId} | TON: +${tonToUser} | Баланс: ${updatedBalance}`);
-  return res.status(200).send('OK');
 });
 
 // ==========================================
@@ -188,30 +154,54 @@ app.get('/api/postback', (req, res) => {
 // ==========================================
 
 // GET /api/user-balance?userId=...
-app.get('/api/user-balance', (req, res) => {
-  const { userId } = req.query;
+app.get('/api/user-balance', async (req, res) => {
+  try {
+    const { userId } = req.query;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'Параметр userId обязателен' });
+    if (!userId) {
+      return res.status(400).json({ error: 'Параметр userId обязателен' });
+    }
+
+    const cleanUserId = String(userId).trim();
+
+    if (!supabase) {
+      return res.status(500).json({ error: 'База данных Supabase не настроена в .env' });
+    }
+
+    // Запрос баланса из таблицы 'users'
+    const { data, error } = await supabase
+      .from('users')
+      .select('balance_ton')
+      .eq('telegram_id', cleanUserId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[SUPABASE ERROR] Ошибка получения баланса:', error.message);
+      return res.status(500).json({ error: 'Ошибка при чтении данных из базы' });
+    }
+
+    const balance = data?.balance_ton !== undefined ? parseFloat(String(data.balance_ton)) : 0.0000;
+
+    return res.json({
+      telegram_id: cleanUserId,
+      user_id: cleanUserId,
+      balance_ton: balance
+    });
+
+  } catch (err) {
+    console.error('[USER-BALANCE EXCEPTION]', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
-
-  const cleanUserId = String(userId).trim();
-  const balance = userBalances[cleanUserId] !== undefined ? userBalances[cleanUserId] : 0.0000;
-
-  return res.json({
-    user_id: cleanUserId,
-    balance_ton: balance
-  });
 });
 
 // GET /api/tasks
-app.get('/api/tasks', (req, res) => {
+app.get('/api/tasks', (_req, res) => {
   return res.json(mockTasks);
 });
 
-// Проверка работоспособности
-app.get('/', (req, res) => {
-  res.send('Monlix Postback & Telegram Mini App Backend is running!');
+// Базовый статус
+app.get('/', (_req, res) => {
+  res.send('Monlix Postback & Telegram Mini App Supabase Backend is running!');
 });
 
 // Запуск сервера
