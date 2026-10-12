@@ -17,12 +17,16 @@
     <button id="click-btn">Кликнуть для начисления +0.2885 TON</button>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
+        // Безопасная проверка: если window.Telegram не существует, берем null и не роняем скрипт
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
         
-        // Твой точный адрес сервера без лишних файлов на конце
-        const host = "https://crypto-swipe-server.onrender.com";
-        const uid = tg.initDataUnsafe?.user?.id || "777999";
+        if (tg) {
+            tg.expand();
+        }
+        
+        const host = "https://onrender.com";
+        // Безопасное чтение ID из Telegram, либо тестовый ID для обычного браузера
+        const uid = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999";
 
         async function load() {
             try {
@@ -58,7 +62,7 @@
             }
         });
 
-        // Запускаем чтение баланса из Supabase при открытии страницы
+        // Теперь функция гарантированно запустится
         load();
     </script>
 </body>
