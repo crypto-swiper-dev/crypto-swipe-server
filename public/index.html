@@ -97,6 +97,7 @@
             text-align: center;
             text-decoration: none;
             transition: background 0.2s;
+            display: block;
         }
         .btn-action:hover {
             background: #00ccaa;
@@ -112,7 +113,7 @@
     <div class="wallet-card">
         <div class="balance-title">Баланс кошелька TON</div>
         <div id="balance-ton" class="balance-value">0.0000 TON</div>
-        <div id="balance-usd" class="balance-balance-usd">≈ \$0.00 USD</div>
+        <div id="balance-usd" class="balance-usd">≈ \$0.00 USD</div>
     </div>
 
     <div class="swipe-container">
@@ -149,8 +150,8 @@
             }
         }
 
-        // Подставляем ID пользователя в ссылку оффера для Monlix
-        document.getElementById('offer-link').href = `https://localhost:3000/api/postback?user_id=${userId}&amount=2.50&trans_id=live_click_${Date.now()}&secret=any`;
+        // Подставляем относительный путь для отправки постбэка на текущий облачный хостинг
+        document.getElementById('offer-link').href = `/api/postback?user_id=${userId}&amount=2.50&trans_id=live_click_${Date.now()}&secret=any`;
 
         // Запускаем проверку баланса при старте
         fetchBalance();
