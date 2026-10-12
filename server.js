@@ -87,7 +87,7 @@ app.get('/api/user-balance', async (req, res) => {
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
         
         let balance = 0.0000;
-        if (userCheck && userCheck.rows && userCheck.rows.length > 0) {
+        if (userCheck.rows && userCheck.rows.length > 0) {
             if (userCheck.rows[0].balance_ton !== null) {
                 balance = parseFloat(userCheck.rows[0].balance_ton);
             }
@@ -121,7 +121,7 @@ app.post('/api/withdraw', async (req, res) => {
 
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
 
-        if (!userCheck || userCheck.rows.length === 0) {
+        if (!userCheck.rows || userCheck.rows.length === 0) {
             return res.status(400).json({ success: false, error: 'Пользователь не найден' });
         }
 
@@ -134,7 +134,6 @@ app.post('/api/withdraw', async (req, res) => {
         const newBalance = userBalance - withdrawAmount;
         await pool.query('UPDATE users SET balance_ton = $1, updated_at = NOW() WHERE telegram_id = $2', [newBalance, targetUserId]);
 
-        // 🔥 ИСПРАВЛЕНО: Убрали статус вообще! База сама автоматически поставит "pending"
         await pool.query('INSERT INTO withdrawal_requests (telegram_id, wallet_address, amount_ton) VALUES ($1, $2, $3)', [targetUserId, walletAddress, withdrawAmount]);
 
         console.log('[WITHDRAW REQUEST] ID: ' + targetUserId + ' | TON: ' + withdrawAmount);
