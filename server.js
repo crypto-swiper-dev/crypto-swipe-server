@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-// ⚠️ ВАЖНО: Явно обрабатываем запрос к тестовой странице ДО обычной раздачи статики!
+// Явно обрабатываем запрос к тестовой странице ДО обычной раздачи статики
 app.get('/test.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'test.html'));
 });
@@ -54,6 +54,9 @@ app.get('/api/postback', async (req, res) => {
             return res.send('OK');
         }
 
+        // Принудительно переводим ID пользователя в числовой тип для Supabase
+        const targetUserId = parseInt(user_id, 10);
+
         // Защита от дубликатов транзакций
         const { data: existingTx } = await supabase
             .from('completed_offers')
@@ -65,8 +68,7 @@ app.get('/api/postback', async (req, res) => {
             return res.send('OK'); 
         }
 
-        const targetUserId = parseInt(user_id, 10);
-        
+        // Чтение текущего баланса из Supabase по числовому ID
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
@@ -110,6 +112,7 @@ app.get('/api/user-balance', async (req, res) => {
             return res.json({ telegram_id: userId, balance_ton: 0.5000 });
         }
 
+        // ВАЖНО ИСПРАВЛЕНИЕ: Переводим запрашиваемый ID в число, чтобы сопоставить с базой данных
         const targetUserId = parseInt(userId, 10);
 
         const { data: user } = await supabase
@@ -118,9 +121,10 @@ app.get('/api/user-balance', async (req, res) => {
             .eq('telegram_id', targetUserId)
             .maybeSingle();
 
+        // Отдаем реальное числовое значение из колонки balance_ton
         res.json({
             telegram_id: targetUserId,
-            balance_ton: user ? user.balance_ton : 0.0000
+            balance_ton: user ? parseFloat(user.balance_ton) : 0.0000
         });
     } catch (error) {
         console.error('[BALANCE FETCH ERROR]', error);
