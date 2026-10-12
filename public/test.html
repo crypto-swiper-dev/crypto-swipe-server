@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест Баланса</title>
+    <script src="https://telegram.org"></script>
+    <style>
+        body { font-family: sans-serif; background: #0f0c20; color: #fff; text-align: center; padding: 40px; }
+        button { background: #00ffcc; color: #000; padding: 20px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; }
+    </style>
+</head>
+<body>
+    <h2>Проверка начисления TON</h2>
+    <h1 id="view-balance">Загрузка...</h1>
+    <br><br>
+    <button id="click-btn">Кликнуть для начисления +0.2885 TON</button>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        const host = window.location.origin;
+        const uid = tg.initDataUnsafe?.user?.id || "777999";
+
+        async function load() {
+            try {
+                const res = await fetch(`${host}/api/user-balance?userId=${uid}`);
+                const data = await res.json();
+                document.getElementById('view-balance').innerText = `${parseFloat(data.balance_ton).toFixed(4)} TON`;
+            } catch(e) { document.getElementById('view-balance').innerText = "Ошибка сети"; }
+        }
+
+        document.getElementById('click-btn').addEventListener('click', async () => {
+            try {
+                const tid = `click_${Date.now()}`;
+                const res = await fetch(`${host}/api/postback?user_id=${uid}&amount=2.50&trans_id=${tid}&secret=any`);
+                const txt = await res.text();
+                alert("Ответ сервера: " + txt);
+                await load();
+            } catch(e) { alert("Ошибка: " + e.message); }
+        });
+
+        load();
+    </script>
+</body>
+</html>
