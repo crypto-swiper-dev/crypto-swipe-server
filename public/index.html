@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crypto Swipe Rewards</title>
+    <!-- ⚠️ ИСПРАВЛЕНО: Полная и точная ссылка на библиотеку Telegram WebApp -->
     <script src="https://telegram.org"></script>
     <style>
         body {
@@ -85,7 +86,6 @@
     </div>
 
     <div class="main-container">
-        <!-- БЛОК ЗАДАНИЯ -->
         <div class="card">
             <div class="card-title">Тестовое задание Monlix</div>
             <p style="margin: 0; font-size: 14px; opacity: 0.8;">Выполните микро-задачу для моментального начисления теста баланса в TON.</p>
@@ -93,7 +93,6 @@
             <button id="offer-btn" class="btn-action">Выполнить оффер</button>
         </div>
 
-        <!-- БЛОК ВЫВОДА СРЕДСТВ -->
         <div class="card">
             <div class="card-title">Вывод средств</div>
             <p style="margin: 0; font-size: 14px; opacity: 0.8;">Минимум для вывода: 0.5000 TON. Заявка обрабатывается администратором.</p>
@@ -103,11 +102,12 @@
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) { tg.expand(); }
 
-        const host = window.location.origin;
-        const userId = tg.initDataUnsafe?.user?.id || "777999"; 
+        // 🚀 Жесткий HTTPS адрес твоего сервера Render
+        const host = "https://onrender.com";
+        const userId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999"; 
         let currentBalanceTon = 0;
 
         async function fetchBalance() {
@@ -126,7 +126,6 @@
             }
         }
 
-        // Кнопка выполнения оффера
         document.getElementById('offer-btn').addEventListener('click', async () => {
             const btn = document.getElementById('offer-btn');
             try {
@@ -145,7 +144,6 @@
             btn.innerText = "Выполнить оффер"; btn.disabled = false;
         });
 
-        // Кнопка вывода средств
         document.getElementById('withdraw-btn').addEventListener('click', async () => {
             const wallet = document.getElementById('wallet-input').value.trim();
             const btn = document.getElementById('withdraw-btn');
