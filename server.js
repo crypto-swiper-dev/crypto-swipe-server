@@ -53,11 +53,13 @@ app.get('/api/postback', async (req, res) => {
             return res.send('OK'); 
         }
 
-        // Чтение текущего баланса из Supabase
+        // Чтение текущего баланса из Supabase с явным приведением ID к числу
+        const targetUserId = parseInt(user_id, 10);
+        
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
-            .eq('telegram_id', user_id)
+            .eq('telegram_id', targetUserId)
             .maybeSingle();
 
         const currentBalance = user ? parseFloat(user.balance_ton) : 0.0;
@@ -66,19 +68,19 @@ app.get('/api/postback', async (req, res) => {
         // Запись нового баланса
         await supabase
             .from('users')
-            .upsert({ telegram_id: parseInt(user_id), balance_ton: newBalance, updated_at: new Date() });
+            .upsert({ telegram_id: targetUserId, balance_ton: newBalance, updated_at: new Date() });
 
         // Логирование транзакции
         await supabase
             .from('completed_offers')
             .insert({
-                telegram_id: parseInt(user_id),
+                telegram_id: targetUserId,
                 transaction_id: trans_id,
                 amount_usd: amountUsd,
                 amount_ton: tonAmount
             });
 
-        console.log(`[POSTBACK SUCCESS] ID: ${user_id} | Tx: ${trans_id} | TON: +${tonAmount}`);
+        console.log(`[POSTBACK SUCCESS] ID: ${targetUserId} | Tx: ${trans_id} | TON: +${tonAmount}`);
         res.send('OK');
 
     } catch (error) {
@@ -97,14 +99,16 @@ app.get('/api/user-balance', async (req, res) => {
             return res.json({ telegram_id: userId, balance_ton: 0.5000 });
         }
 
+        const targetUserId = parseInt(userId, 10);
+
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
-            .eq('telegram_id', userId)
+            .eq('telegram_id', targetUserId)
             .maybeSingle();
 
         res.json({
-            telegram_id: userId,
+            telegram_id: targetUserId,
             balance_ton: user ? user.balance_ton : 0.0000
         });
     } catch (error) {
