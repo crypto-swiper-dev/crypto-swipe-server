@@ -66,33 +66,27 @@ app.get('/api/postback', async (req, res) => {
         const tonAmount = parseFloat((usdToUser / 5.20).toFixed(4)); 
 
         if (!pool) {
-            console.log(`[DEV MODE] User: ${user_id} | +${tonAmount} TON`);
+            console.log('[DEV MODE] User: ' + user_id + ' | +' + tonAmount + ' TON');
             return res.send('OK');
         }
 
         const targetUserId = parseInt(user_id, 10);
 
-        // 1. Защита от дубликатов транзакций
-        const txCheck = await pool.query('SELECT transaction_id FROM completed_offers WHERE transaction_id = \$1', [trans_id]);
+        // 1. Защита от дубликатов транзакций (Используем чистые одинарные кавычки)
+        const txCheck = await pool.query('SELECT transaction_id FROM completed_offers WHERE transaction_id = $1', [trans_id]);
         if (txCheck.rows.length > 0) {
             return res.send('OK'); 
         }
 
         // 2. Обновляем или создаем пользователя (UPSERT)
-        await pool.query(`
-            INSERT INTO users (telegram_id, balance_ton, updated_at) 
-            VALUES ($1, $2, NOW())
-            ON CONFLICT (telegram_id) 
-            DO UPDATE SET balance_ton = users.balance_ton + $2, updated_at = NOW()
-        `, [targetUserId, tonAmount]);
+        const userUpsertQuery = 'INSERT INTO users (telegram_id, balance_ton, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (telegram_id) DO UPDATE SET balance_ton = users.balance_ton + $2, updated_at = NOW()';
+        await pool.query(userUpsertQuery, [targetUserId, tonAmount]);
 
         // 3. Логируем транзакцию
-        await pool.query(`
-            INSERT INTO completed_offers (telegram_id, transaction_id, amount_usd, amount_ton) 
-            VALUES ($1, $2, $3, $4)
-        `, [targetUserId, trans_id, amountUsd, tonAmount]);
+        const txInsertQuery = 'INSERT INTO completed_offers (telegram_id, transaction_id, amount_usd, amount_ton) VALUES ($1, $2, $3, $4)';
+        await pool.query(txInsertQuery, [targetUserId, trans_id, amountUsd, tonAmount]);
 
-        console.log(`[DATABASE SUCCESS] ID: ${targetUserId} | TON: +${tonAmount}`);
+        console.log('[DATABASE SUCCESS] ID: ' + targetUserId + ' | TON: +' + tonAmount);
         res.send('OK');
 
     } catch (error) {
@@ -113,9 +107,12 @@ app.get('/api/user-balance', async (req, res) => {
 
         const targetUserId = parseInt(userId, 10);
 
-        const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = \$1', [targetUserId]);
+        const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
         
-        const balance = userCheck.rows.length > 0 ? parseFloat(userCheck.rows[0].balance_ton) : 0.0000;
+        let balance = 0.0000;
+        if (userCheck.rows.length > 0) {
+            balance = parseFloat(userCheck.rows[0].balance_ton);
+        }
 
         res.json({
             telegram_id: targetUserId,
@@ -128,5 +125,5 @@ app.get('/api/user-balance', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server is listening on port ${PORT}`);
+    console.log('Server is listening on port ' + PORT);
 });
