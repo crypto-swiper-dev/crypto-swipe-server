@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 
 dotenv.config();
 
@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-// Явно обрабатываем запрос к тестовой странице ДО обычной раздачи статики
+// Обрабатываем запрос к тестовой странице ДО обычной раздачи статики
 app.get('/test.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'test.html'));
 });
@@ -24,13 +24,30 @@ app.get('/test.html', (req, res) => {
 // Раздача остальных файлов из папки public
 app.use(express.static('public'));
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const MONLIX_SECRET = process.env.MONLIX_SECRET || 'any';
+// Прямое подключение к Postgres Supabase через Connection String
+const { Pool } = pg;
 
-const supabase = (SUPABASE_URL && SUPABASE_KEY) 
-  ? createClient(SUPABASE_URL, SUPABASE_KEY) 
-  : null;
+console.log("=== ДИАГНОСТИКА БАЗЫ ДАННЫХ ===");
+if (process.env.DATABASE_URL) {
+    console.log("Status: Переменная DATABASE_URL найдена на хостинге!");
+    // Показываем только начало строки для безопасности логов
+    console.log("Start of URL:", process.env.DATABASE_URL.substring(0, 20) + "...");
+} else {
+    console.log("Status: ВНИМАНИЕ! Переменная DATABASE_URL отсутствует или пустая в настройках Render!");
+}
+console.log("===============================");
+
+const pool = process.env.DATABASE_URL ? new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+}) : null;
+
+// Тестовая проверка пула при запуске
+if (pool) {
+    pool.query('SELECT NOW()')
+        .then(() => console.log("✓ УСПЕШНО: Прямое подключение к базе данных Supabase установлено!"))
+        .catch((err) => console.error("❌ ОШИБКА ПОДКЛЮЧЕНИЯ К ПОСТГРЕСУ:", err.message));
+}
 
 // 1. ПОСТБЭК ЭНДПОИНТ (ПРИЕМ НАЧИСЛЕНИЙ)
 app.get('/api/postback', async (req, res) => {
@@ -41,6 +58,7 @@ app.get('/api/postback', async (req, res) => {
             return res.status(400).send('Missing required parameters');
         }
 
+        const MONLIX_SECRET = process.env.MONLIX_SECRET || 'any';
         if (secret && secret !== MONLIX_SECRET) {
             return res.status(403).send('Invalid secret');
         }
@@ -49,51 +67,34 @@ app.get('/api/postback', async (req, res) => {
         const usdToUser = amountUsd * 0.60; 
         const tonAmount = parseFloat((usdToUser / 5.20).toFixed(4)); 
 
-        if (!supabase) {
+        if (!pool) {
             console.log(`[DEV MODE] User: ${user_id} | +${tonAmount} TON`);
             return res.send('OK');
         }
 
-        // Принудительно переводим ID пользователя в числовой тип для Supabase
         const targetUserId = parseInt(user_id, 10);
 
-        // Защита от дубликатов транзакций
-        const { data: existingTx } = await supabase
-            .from('completed_offers')
-            .select('transaction_id')
-            .eq('transaction_id', trans_id)
-            .maybeSingle();
-
-        if (existingTx) {
+        // 1. Защита от дубликатов транзакций
+        const txCheck = await pool.query('SELECT transaction_id FROM completed_offers WHERE transaction_id = \$1', [trans_id]);
+        if (txCheck.rows.length > 0) {
             return res.send('OK'); 
         }
 
-        // Чтение текущего баланса из Supabase по числовому ID
-        const { data: user } = await supabase
-            .from('users')
-            .select('balance_ton')
-            .eq('telegram_id', targetUserId)
-            .maybeSingle();
+        // 2. Обновляем или создаем пользователя (UPSERT)
+        await pool.query(`
+            INSERT INTO users (telegram_id, balance_ton, updated_at) 
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (telegram_id) 
+            DO UPDATE SET balance_ton = users.balance_ton + $2, updated_at = NOW()
+        `, [targetUserId, tonAmount]);
 
-        const currentBalance = user ? parseFloat(user.balance_ton) : 0.0;
-        const newBalance = currentBalance + tonAmount;
+        // 3. Логируем транзакцию
+        await pool.query(`
+            INSERT INTO completed_offers (telegram_id, transaction_id, amount_usd, amount_ton) 
+            VALUES ($1, $2, $3, $4)
+        `, [targetUserId, trans_id, amountUsd, tonAmount]);
 
-        // Запись нового баланса
-        await supabase
-            .from('users')
-            .upsert({ telegram_id: targetUserId, balance_ton: newBalance, updated_at: new Date() });
-
-        // Логирование транзакции
-        await supabase
-            .from('completed_offers')
-            .insert({
-                telegram_id: targetUserId,
-                transaction_id: trans_id,
-                amount_usd: amountUsd,
-                amount_ton: tonAmount
-            });
-
-        console.log(`[POSTBACK SUCCESS] ID: ${targetUserId} | Tx: ${trans_id} | TON: +${tonAmount}`);
+        console.log(`[DATABASE SUCCESS] ID: ${targetUserId} | TON: +${tonAmount}`);
         res.send('OK');
 
     } catch (error) {
@@ -108,23 +109,19 @@ app.get('/api/user-balance', async (req, res) => {
         const { userId } = req.query;
         if (!userId) return res.status(400).json({ error: 'Missing userId' });
 
-        if (!supabase) {
-            return res.json({ telegram_id: userId, balance_ton: 0.5000 });
+        if (!pool) {
+            return res.json({ telegram_id: parseInt(userId, 10), balance_ton: 0.5000 });
         }
 
-        // ВАЖНО ИСПРАВЛЕНИЕ: Переводим запрашиваемый ID в число, чтобы сопоставить с базой данных
         const targetUserId = parseInt(userId, 10);
 
-        const { data: user } = await supabase
-            .from('users')
-            .select('balance_ton')
-            .eq('telegram_id', targetUserId)
-            .maybeSingle();
+        const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = \$1', [targetUserId]);
+        
+        const balance = userCheck.rows.length > 0 ? parseFloat(userCheck.rows[0].balance_ton) : 0.0000;
 
-        // Отдаем реальное числовое значение из колонки balance_ton
         res.json({
             telegram_id: targetUserId,
-            balance_ton: user ? parseFloat(user.balance_ton) : 0.0000
+            balance_ton: balance
         });
     } catch (error) {
         console.error('[BALANCE FETCH ERROR]', error);
