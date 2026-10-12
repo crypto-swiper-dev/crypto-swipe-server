@@ -53,7 +53,6 @@ app.get('/api/postback', async (req, res) => {
 
         const targetUserId = parseInt(user_id, 10);
 
-        // Исправлено: убран наклонный слэш перед знаком доллара
         const txCheck = await pool.query('SELECT transaction_id FROM completed_offers WHERE transaction_id = $1', [trans_id]);
         if (txCheck.rows.length > 0) {
             return res.send('OK'); 
@@ -85,10 +84,10 @@ app.get('/api/user-balance', async (req, res) => {
         }
 
         const targetUserId = parseInt(userId, 10);
-        // Исправлено: убран наклонный слэш
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
         
         let balance = 0.0000;
+        // ✓ ИСПРАВЛЕНО: Добавлен строгий индекс [0] для чтения первой строки массива rows
         if (userCheck.rows.length > 0 && userCheck.rows[0].balance_ton !== null) {
             balance = parseFloat(userCheck.rows[0].balance_ton);
         }
@@ -119,9 +118,9 @@ app.post('/api/withdraw', async (req, res) => {
         const targetUserId = parseInt(userId, 10);
         const withdrawAmount = parseFloat(amount);
 
-        // Исправлено: убран наклонный слэш
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
 
+        // ✓ ИСПРАВЛЕНО: Добавлен индекс [0] для проверки баланса
         if (userCheck.rows.length === 0 || parseFloat(userCheck.rows[0].balance_ton) < withdrawAmount || withdrawAmount < 0.5000) {
             return res.status(400).json({ success: false, error: 'Недостаточно средств' });
         }
