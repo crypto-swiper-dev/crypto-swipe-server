@@ -20,16 +20,19 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
         
-        // ⚠️ ЖЕСТКО ПРОПИСЫВАЕМ ТВОЙ АДРЕС СЕРВЕРА RENDER
-        const host = "https://onrender.com";
+        // Твой точный адрес сервера без лишних файлов на конце
+        const host = "https://crypto-swipe-server.onrender.com";
         const uid = tg.initDataUnsafe?.user?.id || "777999";
 
         async function load() {
             try {
-                console.log("Запрос баланса на: " + `${host}/api/user-balance?userId=${uid}`);
                 const res = await fetch(`${host}/api/user-balance?userId=${uid}`);
                 const data = await res.json();
-                document.getElementById('view-balance').innerText = `${parseFloat(data.balance_ton).toFixed(4)} TON`;
+                if (data && data.balance_ton !== undefined) {
+                    document.getElementById('view-balance').innerText = `${parseFloat(data.balance_ton).toFixed(4)} TON`;
+                } else {
+                    document.getElementById('view-balance').innerText = "Ошибка данных";
+                }
             } catch(e) { 
                 document.getElementById('view-balance').innerText = "Ошибка сети"; 
                 console.error(e);
@@ -41,7 +44,6 @@
                 const tid = `click_${Date.now()}`;
                 const url = `${host}/api/postback?user_id=${uid}&amount=2.50&trans_id=${tid}&secret=any`;
                 
-                // Сразу выводим сообщение, чтобы видеть, что клик сработал
                 document.getElementById('click-btn').innerText = "Отправка...";
                 
                 const res = await fetch(url);
@@ -56,6 +58,7 @@
             }
         });
 
+        // Запускаем чтение баланса из Supabase при открытии страницы
         load();
     </script>
 </body>
