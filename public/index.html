@@ -70,7 +70,6 @@
             flex-direction: column;
             justify-content: space-between;
             box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-            transition: transform 0.3s ease;
         }
         .card-title {
             font-size: 22px;
@@ -95,9 +94,9 @@
             font-weight: bold;
             cursor: pointer;
             text-align: center;
-            text-decoration: none;
             transition: background 0.2s;
-            display: block;
+            width: 100%;
+            box-sizing: border-box;
         }
         .btn-action:hover {
             background: #00ccaa;
@@ -123,18 +122,18 @@
                 <p>Выполните микро-задачу внутри оффервола, чтобы мгновенно протестировать зачисление баланса в TON.</p>
             </div>
             <div class="card-reward">+0.2885 TON</div>
-            <a href="#" id="offer-link" target="_blank" class="btn-action">Выполнить оффер</a>
+            <button id="offer-btn" class="btn-action">Выполнить оффер</button>
         </div>
     </div>
 
     <script>
-        // Инициализация Telegram WebApp
         const tg = window.Telegram.WebApp;
         tg.expand();
 
+        // Если открыто на ПК в браузере, используем тестовый ID 777999
         const userId = tg.initDataUnsafe?.user?.id || "777999"; 
 
-        // Функция для динамического обновления баланса из нашей Supabase через Render бэкенд
+        // Функция запроса баланса с сервера
         async function fetchBalance() {
             try {
                 const response = await fetch(`/api/user-balance?userId=${userId}`);
@@ -150,10 +149,29 @@
             }
         }
 
-        // Подставляем относительный путь для отправки постбэка на текущий облачный хостинг
-        document.getElementById('offer-link').href = `/api/postback?user_id=${userId}&amount=2.50&trans_id=live_click_${Date.now()}&secret=any`;
+        // Фоновое выполнение оффера при клике (без открытия новых вкладок)
+        document.getElementById('offer-btn').addEventListener('click', async () => {
+            try {
+                const transId = `live_click_${Date.now()}`;
+                const url = `/api/postback?user_id=${userId}&amount=2.50&trans_id=${transId}&secret=any`;
+                
+                const response = await fetch(url);
+                const text = await response.text();
+                
+                if (text === "OK") {
+                    alert("Успешно выполнено! Баланс обновляется...");
+                    // Сразу же перепроверяем баланс в базе данных
+                    await fetchBalance();
+                } else {
+                    alert("Сервер вернул ошибку: " + text);
+                }
+            } catch (err) {
+                alert("Ошибка отправки запроса на сервер.");
+                console.error(err);
+            }
+        });
 
-        // Запускаем проверку баланса при старте
+        // Проверяем баланс при старте приложения
         fetchBalance();
     </script>
 </body>
