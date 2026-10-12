@@ -17,13 +17,11 @@
     <button id="click-btn">Кликнуть для начисления +0.2885 TON</button>
 
     <script>
-        // Безопасная проверка инициализации Telegram WebApp
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) {
             tg.expand();
         }
         
-        // 🚀 АВТОМАТИЧЕСКИЙ ДОМЕН: скрипт сам возьмет твой правильный адрес из адресной строки!
         const host = window.location.origin;
         const uid = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999";
 
@@ -31,10 +29,17 @@
             try {
                 const res = await fetch(`${host}/api/user-balance?userId=${uid}`);
                 const data = await res.json();
+                
+                // Выводим в консоль браузера для проверки, что прислал сервер
+                console.log("Ответ сервера по балансу:", data);
+
+                // Жесткая проверка: смотрим любое возможное поле баланса в ответе
                 if (data && data.balance_ton !== undefined) {
                     document.getElementById('view-balance').innerText = `${parseFloat(data.balance_ton).toFixed(4)} TON`;
+                } else if (data && data.balance !== undefined) {
+                    document.getElementById('view-balance').innerText = `${parseFloat(data.balance).toFixed(4)} TON`;
                 } else {
-                    document.getElementById('view-balance').innerText = "Ошибка данных";
+                    document.getElementById('view-balance').innerText = "Ошибка формата";
                 }
             } catch(e) { 
                 document.getElementById('view-balance').innerText = "Ошибка сети"; 
@@ -61,7 +66,6 @@
             }
         });
 
-        // Запуск
         load();
     </script>
 </body>
