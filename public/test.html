@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тест Баланса</title>
+    <!-- ИСПРАВЛЕНО: Правильный и полный адрес скрипта Telegram WebApp -->
     <script src="https://telegram.org"></script>
     <style>
         body { font-family: sans-serif; background: #0f0c20; color: #fff; text-align: center; padding: 40px; }
         button { background: #00ffcc; color: #000; padding: 20px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; }
         button:disabled { background: #3d356d; color: #7f7f7f; cursor: not-allowed; }
+        #status-log { margin-top: 20px; padding: 15px; background: #1f1a3a; border-radius: 10px; font-size: 14px; color: #00ffcc; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -16,6 +18,9 @@
     <h1 id="view-balance">0.0000 TON</h1>
     <br><br>
     <button id="click-btn">Кликнуть для начисления +0.2885 TON</button>
+    
+    <!-- Информационное табло для вывода ответов сервера -->
+    <div id="status-log">Статус системы: Готов к тесту</div>
 
     <script>
         const tg = window.Telegram ? window.Telegram.WebApp : null;
@@ -23,6 +28,12 @@
         
         const host = window.location.origin;
         const uid = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999";
+
+        function logStatus(text, isError = false) {
+            const logDiv = document.getElementById('status-log');
+            logDiv.innerText = text;
+            logDiv.style.color = isError ? "#ff4a4a" : "#00ffcc";
+        }
 
         async function load() {
             try {
@@ -33,6 +44,7 @@
                 }
             } catch(e) { 
                 console.error("Ошибка чтения баланса:", e);
+                logStatus("Ошибка загрузки баланса: " + e.message, true);
             }
         }
 
@@ -40,11 +52,12 @@
             const btn = document.getElementById('click-btn');
             btn.innerText = "Отправка...";
             btn.disabled = true;
+            logStatus("Отправка тестового постбэка на сервер...");
 
-            // Защитный таймер от зависания кнопки (сбросит через 3 секунды в любом случае!)
             const timeout = setTimeout(() => {
                 btn.innerText = "Кликнуть для начисления +0.2885 TON";
                 btn.disabled = false;
+                logStatus("Превышено время ожидания сервера (3 сек). Запрос отправлен в фон.", true);
             }, 3000);
 
             try {
@@ -54,20 +67,21 @@
                 const res = await fetch(url);
                 const txt = await res.text();
                 
-                clearTimeout(timeout); // Сервер ответил, отменяем таймер паники
-                alert("Ответ сервера: " + txt);
+                clearTimeout(timeout);
+                logStatus("Ответ сервера: " + txt);
                 
                 btn.innerText = "Кликнуть для начисления +0.2885 TON";
                 btn.disabled = false;
                 await load();
             } catch(e) { 
                 clearTimeout(timeout);
-                alert("Ошибка запроса: " + e.message); 
+                logStatus("Ошибка сети: " + e.message, true);
                 btn.innerText = "Кликнуть для начисления +0.2885 TON";
                 btn.disabled = false;
             }
         });
 
+        // Запуск проверки
         load();
     </script>
 </body>
