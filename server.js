@@ -2,14 +2,26 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use(cors());
 app.use(express.json());
+
+// ⚠️ ВАЖНО: Явно обрабатываем запрос к тестовой странице ДО обычной раздачи статики!
+app.get('/test.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'test.html'));
+});
+
+// Раздача остальных файлов из папки public
 app.use(express.static('public'));
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -53,7 +65,6 @@ app.get('/api/postback', async (req, res) => {
             return res.send('OK'); 
         }
 
-        // Чтение текущего баланса из Supabase с явным приведением ID к числу
         const targetUserId = parseInt(user_id, 10);
         
         const { data: user } = await supabase
