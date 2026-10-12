@@ -14,31 +14,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // ВАЖНО: Разрешаем серверу парсить JSON в теле POST-запросов
 
-// Раздача тестовой страницы
 app.get('/test.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'test.html'));
 });
 
-// Раздача фронтенда
 app.use(express.static('public'));
 
-// Официальное подключение Supabase через URL и сервисный ключ API
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 
   ? createClient(SUPABASE_URL, SUPABASE_KEY) 
   : null;
-
-console.log("=== ДИАГНОСТИКА СВЯЗИ ===");
-if (supabase) {
-    console.log("✓ Официальный клиент Supabase успешно запущен!");
-} else {
-    console.log("❌ ВНИМАНИЕ: Проверьте переменные SUPABASE_URL и SUPABASE_KEY!");
-}
-console.log("=========================");
 
 // 1. ПОСТБЭК ЭНДПОИНТ (ПРИЕМ НАЧИСЛЕНИЙ)
 app.get('/api/postback', async (req, res) => {
@@ -65,18 +54,14 @@ app.get('/api/postback', async (req, res) => {
 
         const targetUserId = parseInt(user_id, 10);
 
-        // 1. Защита от дубликатов транзакций
         const { data: existingTx } = await supabase
             .from('completed_offers')
             .select('transaction_id')
             .eq('transaction_id', trans_id)
             .maybeSingle();
 
-        if (existingTx) {
-            return res.send('OK'); 
-        }
+        if (existingTx) { return res.send('OK'); }
 
-        // 2. Чтение текущего баланса
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
@@ -86,12 +71,10 @@ app.get('/api/postback', async (req, res) => {
         const currentBalance = user ? parseFloat(user.balance_ton) : 0.0;
         const newBalance = currentBalance + tonAmount;
 
-        // 3. Сохранение баланса (UPSERT)
         await supabase
             .from('users')
             .upsert({ telegram_id: targetUserId, balance_ton: newBalance, updated_at: new Date() });
 
-        // 4. Логирование транзакции
         await supabase
             .from('completed_offers')
             .insert({
@@ -103,14 +86,13 @@ app.get('/api/postback', async (req, res) => {
 
         console.log(`[DATABASE SUCCESS] ID: ${targetUserId} | TON: +${tonAmount}`);
         return res.send('OK');
-
     } catch (error) {
         console.error('[POSTBACK ERROR]', error);
         return res.status(500).send('ERROR');
     }
 });
 
-// 2. ЭНДПОИНТ ДЛЯ ПОЛУЧЕНИЯ БАЛАНСА В МИНИ-ПРИЛОЖЕНИИ
+// 2. ЭНДПОИНТ ПОЛУЧЕНИЯ БАЛАНСА
 app.get('/api/user-balance', async (req, res) => {
     try {
         const { userId } = req.query;
@@ -121,22 +103,71 @@ app.get('/api/user-balance', async (req, res) => {
         }
 
         const targetUserId = parseInt(userId, 10);
-
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
             .eq('telegram_id', targetUserId)
             .maybeSingle();
 
-        const balance = user ? parseFloat(user.balance_ton) : 0.0000;
-
         return res.json({
             telegram_id: targetUserId,
-            balance_ton: balance
+            balance_ton: user ? parseFloat(user.balance_ton) : 0.0000
         });
     } catch (error) {
-        console.error('[BALANCE FETCH ERROR]', error);
         return res.status(500).json({ error: 'Internal error' });
+    }
+});
+
+// 🚀 3. НОВЫЙ ЭНДПОИНТ: ОБРАБОТКА ВЫВОДА СРЕДСТВ
+app.post('/api/withdraw', async (req, res) => {
+    try {
+        const { userId, walletAddress, amount } = req.body;
+
+        if (!userId || !walletAddress || !amount) {
+            return res.status(400).json({ success: false, error: 'Missing parameters' });
+        }
+
+        if (!supabase) {
+            return res.json({ success: true, message: '[DEV MODE] Withdrawal simulation successful' });
+        }
+
+        const targetUserId = parseInt(userId, 10);
+        const withdrawAmount = parseFloat(amount);
+
+        // Проверяем реальный баланс юзера в базе
+        const { data: user } = await supabase
+            .from('users')
+            .select('balance_ton')
+            .eq('telegram_id', targetUserId)
+            .maybeSingle();
+
+        if (!user || parseFloat(user.balance_ton) < withdrawAmount || withdrawAmount < 0.5000) {
+            return res.status(400).json({ success: false, error: 'Недостаточно средств или неверная сумма' });
+        }
+
+        // Списываем баланс до 0 в таблице users
+        const newBalance = parseFloat(user.balance_ton) - withdrawAmount;
+        await supabase
+            .from('users')
+            .update({ balance_ton: newBalance, updated_at: new Date() })
+            .eq('telegram_id', targetUserId);
+
+        // Записываем лог заявки в таблицу withdrawal_requests
+        await supabase
+            .from('withdrawal_requests')
+            .insert({
+                telegram_id: targetUserId,
+                wallet_address: walletAddress,
+                amount_ton: withdrawAmount,
+                status: 'pending'
+            });
+
+        console.log(`[WITHDRAW REQUEST] ID: ${targetUserId} | Amount: ${withdrawAmount} TON | Wallet: ${walletAddress}`);
+        return res.json({ success: true });
+
+    } catch (error) {
+        console.error('[WITHDRAW ERROR]', error);
+        return res.status(500).json({ success: false, error: 'Internal server error' });
     }
 });
 
