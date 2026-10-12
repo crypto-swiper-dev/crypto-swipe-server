@@ -8,12 +8,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Включаем CORS и автоматическую раздачу фронтенда из папки public
+// Настройка промежуточного ПО для работы CORS, обработки JSON и раздачи файлов фронтенда
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Настройки Supabase
+// Переменные подключения к базе данных Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MONLIX_SECRET = process.env.MONLIX_SECRET || 'any';
@@ -22,31 +22,31 @@ const supabase = (SUPABASE_URL && SUPABASE_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_KEY) 
   : null;
 
-// 1. POSTBACK ЭНДПОИНТ ДЛЯ MONLIX
+// 1. ПОСТБЭК ЭНДПОИНТ (ПРИЕМ НАЧИСЛЕНИЙ ОТ РЕКЛАМНЫХ СЕТЕЙ)
 app.get('/api/postback', async (req, res) => {
     try {
         const { user_id, amount, trans_id, secret } = req.query;
 
-        // Проверка обязательных параметров
+        // Валидация входных данных
         if (!user_id || !amount || !trans_id) {
             return res.status(400).send('Missing required parameters');
         }
 
-        // Проверка секрета
+        // Проверка соответствия секретного ключа
         if (secret && secret !== MONLIX_SECRET) {
             return res.status(403).send('Invalid secret');
         }
 
         const amountUsd = parseFloat(amount);
-        const usdToUser = amountUsd * 0.60; // 40% комиссия админа
-        const tonAmount = parseFloat((usdToUser / 5.20).toFixed(4)); // Курс 5.20
+        const usdToUser = amountUsd * 0.60; // 40% удерживается админу, 60% начисляется юзеру
+        const tonAmount = parseFloat((usdToUser / 5.20).toFixed(4)); // Конвертация по курсу 5.20
 
         if (!supabase) {
-            console.log(`[LOCAL TEST SUCCESS] User: ${user_id} | +${tonAmount} TON`);
+            console.log(`[LOCAL/DEV MODE SUCCESS] User: ${user_id} | +${tonAmount} TON`);
             return res.send('OK');
         }
 
-        // Защита от дубликатов трансляций
+        // Дедупликация (Защита от повторного выполнения одного и того же оффера)
         const { data: existingTx } = await supabase
             .from('completed_offers')
             .select('transaction_id')
@@ -54,10 +54,10 @@ app.get('/api/postback', async (req, res) => {
             .single();
 
         if (existingTx) {
-            return res.send('OK'); // Уже начислено, просто возвращаем OK
+            return res.send('OK'); // Если транзакция уже есть, возвращаем OK без начисления
         }
 
-        // Получаем текущий баланс пользователя
+        // Чтение текущего состояния кошелька из Supabase
         const { data: user } = await supabase
             .from('users')
             .select('balance_ton')
@@ -67,12 +67,12 @@ app.get('/api/postback', async (req, res) => {
         const currentBalance = user ? parseFloat(user.balance_ton) : 0.0;
         const newBalance = currentBalance + tonAmount;
 
-        // Обновляем баланс пользователя через UPSERT
+        // Сохранение обновленного баланса пользователя
         await supabase
             .from('users')
             .upsert({ telegram_id: user_id, balance_ton: newBalance, updated_at: new Date() });
 
-        // Логируем успешную транзакцию
+        // Фиксация записи о завершенной транзакции
         await supabase
             .from('completed_offers')
             .insert({
@@ -91,7 +91,7 @@ app.get('/api/postback', async (req, res) => {
     }
 });
 
-// 2. ЭНДПОИНТ ПОЛУЧЕНИЯ БАЛАНСА ПОЛЬЗОВАТЕЛЯ
+// 2. ЭНДПОИНТ ДЛЯ ОТОБРАЖЕНИЯ БАЛАНСА В МИНИ-ПРИЛОЖЕНИИ
 app.get('/api/user-balance', async (req, res) => {
     try {
         const { userId } = req.query;
@@ -116,6 +116,7 @@ app.get('/api/user-balance', async (req, res) => {
     }
 });
 
+// Старт веб-сервера
 app.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
