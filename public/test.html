@@ -19,25 +19,41 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        const host = window.location.origin;
+        
+        // ⚠️ ЖЕСТКО ПРОПИСЫВАЕМ ТВОЙ АДРЕС СЕРВЕРА RENDER
+        const host = "https://onrender.com";
         const uid = tg.initDataUnsafe?.user?.id || "777999";
 
         async function load() {
             try {
+                console.log("Запрос баланса на: " + `${host}/api/user-balance?userId=${uid}`);
                 const res = await fetch(`${host}/api/user-balance?userId=${uid}`);
                 const data = await res.json();
                 document.getElementById('view-balance').innerText = `${parseFloat(data.balance_ton).toFixed(4)} TON`;
-            } catch(e) { document.getElementById('view-balance').innerText = "Ошибка сети"; }
+            } catch(e) { 
+                document.getElementById('view-balance').innerText = "Ошибка сети"; 
+                console.error(e);
+            }
         }
 
         document.getElementById('click-btn').addEventListener('click', async () => {
             try {
                 const tid = `click_${Date.now()}`;
-                const res = await fetch(`${host}/api/postback?user_id=${uid}&amount=2.50&trans_id=${tid}&secret=any`);
+                const url = `${host}/api/postback?user_id=${uid}&amount=2.50&trans_id=${tid}&secret=any`;
+                
+                // Сразу выводим сообщение, чтобы видеть, что клик сработал
+                document.getElementById('click-btn').innerText = "Отправка...";
+                
+                const res = await fetch(url);
                 const txt = await res.text();
+                
                 alert("Ответ сервера: " + txt);
+                document.getElementById('click-btn').innerText = "Кликнуть для начисления +0.2885 TON";
                 await load();
-            } catch(e) { alert("Ошибка: " + e.message); }
+            } catch(e) { 
+                alert("Ошибка запроса: " + e.message); 
+                document.getElementById('click-btn').innerText = "Кликнуть для начисления +0.2885 TON";
+            }
         });
 
         load();
