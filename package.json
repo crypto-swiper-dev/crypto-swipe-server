@@ -9,6 +9,7 @@
   "dependencies": {
     "express": "^4.21.1",
     "cors": "^2.8.5",
-    "@supabase/supabase-js": "^2.45.4"
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5"
   }
 }
