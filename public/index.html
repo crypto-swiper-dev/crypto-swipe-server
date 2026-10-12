@@ -52,7 +52,7 @@
             position: relative;
             width: 90%;
             max-width: 350px;
-            height: 380px;
+            height: 300px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -101,6 +101,17 @@
         .btn-action:hover {
             background: #00ccaa;
         }
+        .btn-action:disabled {
+            background: #3d356d;
+            color: #7f7f7f;
+            cursor: not-allowed;
+        }
+        #status-log {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #00ffcc;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -119,25 +130,29 @@
         <div class="card">
             <div>
                 <div class="card-title">Тестовое задание Monlix</div>
-                <p>Выполните микро-задачу внутри оффервола, чтобы мгновенно протестировать зачисление баланса в TON.</p>
+                <p>Выполните микро-задачу, чтобы протестировать моментальное зачисление баланса в TON.</p>
             </div>
             <div class="card-reward">+0.2885 TON</div>
             <button id="offer-btn" class="btn-action">Выполнить оффер</button>
         </div>
     </div>
+    
+    <div id="status-log">Система: Готова к работе</div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) { tg.expand(); }
 
-        // Автоматически определяем текущий домен сервера Render, чтобы запросы летели точно в цель
-        const BACKEND_URL = window.location.origin;
-        const userId = tg.initDataUnsafe?.user?.id || "777999"; 
+        const host = window.location.origin;
+        const userId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999"; 
 
-        // Функция запроса баланса с сервера
+        function logStatus(text) {
+            document.getElementById('status-log').innerText = "Система: " + text;
+        }
+
         async function fetchBalance() {
             try {
-                const response = await fetch(`${BACKEND_URL}/api/user-balance?userId=${userId}`);
+                const response = await fetch(`${host}/api/user-balance?userId=${userId}`);
                 const data = await response.json();
                 if (data && data.balance_ton !== undefined) {
                     const ton = parseFloat(data.balance_ton).toFixed(4);
@@ -150,31 +165,40 @@
             }
         }
 
-        // Фоновое выполнение оффера при клике
         document.getElementById('offer-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('offer-btn');
+            btn.innerText = "Отправка...";
+            btn.disabled = true;
+            logStatus("Отправка данных рекламодателя...");
+
+            const timeout = setTimeout(() => {
+                btn.innerText = "Выполнить оффер";
+                btn.disabled = false;
+                logStatus("Запрос обрабатывается в фоне...");
+            }, 3000);
+
             try {
                 const transId = `live_click_${Date.now()}`;
-                const url = `${BACKEND_URL}/api/postback?user_id=${userId}&amount=2.50&trans_id=${transId}&secret=any`;
-                
-                // Выводим диагностическое сообщение
-                console.log("Отправка запроса на: " + url);
+                const url = `${host}/api/postback?user_id=${userId}&amount=2.50&trans_id=${transId}&secret=any`;
                 
                 const response = await fetch(url);
                 const text = await response.text();
                 
-                if (text === "OK") {
-                    alert("Успешно выполнено! Баланс кошелька обновлен. 🚀");
-                    await fetchBalance();
-                } else {
-                    alert("Ответ сервера: " + text);
-                }
+                clearTimeout(timeout);
+                logStatus("Успешно зачислено! Обновление...");
+                
+                btn.innerText = "Выполнить оффер";
+                btn.disabled = false;
+                
+                await fetchBalance();
             } catch (err) {
-                alert("Ошибка сети при отправке постбэка: " + err.message);
-                console.error(err);
+                clearTimeout(timeout);
+                logStatus("Ошибка сети.");
+                btn.innerText = "Выполнить оффер";
+                btn.disabled = false;
             }
         });
 
-        // Проверяем баланс при старте приложения
         fetchBalance();
     </script>
 </body>
