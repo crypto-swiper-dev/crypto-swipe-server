@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тест Баланса</title>
-    <!-- ИСПРАВЛЕНО: Правильный и полный адрес скрипта Telegram WebApp -->
-    <script src="https://telegram.org"></script>
     <style>
         body { font-family: sans-serif; background: #0f0c20; color: #fff; text-align: center; padding: 40px; }
         button { background: #00ffcc; color: #000; padding: 20px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; }
@@ -19,14 +17,14 @@
     <br><br>
     <button id="click-btn">Кликнуть для начисления +0.2885 TON</button>
     
-    <!-- Информационное табло для вывода ответов сервера -->
     <div id="status-log">Статус системы: Готов к тесту</div>
 
     <script>
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) { tg.expand(); }
         
-        const host = window.location.origin;
+        // 🚀 ЖЕСТКИЙ АБСОЛЮТНЫЙ АДРЕС: Пробивает любую сетевую защиту Render в браузерах
+        const host = "https://crypto-swipe-server.onrender.com";
         const uid = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999";
 
         function logStatus(text, isError = false) {
@@ -44,7 +42,6 @@
                 }
             } catch(e) { 
                 console.error("Ошибка чтения баланса:", e);
-                logStatus("Ошибка загрузки баланса: " + e.message, true);
             }
         }
 
@@ -81,7 +78,7 @@
             }
         });
 
-        // Запуск проверки
+        // Запуск первой проверки
         load();
     </script>
 </body>
