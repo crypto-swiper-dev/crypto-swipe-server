@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crypto Swipe Rewards</title>
-    <!-- ⚠️ ИСПРАВЛЕНО: Полная и точная ссылка на библиотеку Telegram WebApp -->
     <script src="https://telegram.org"></script>
     <style>
         body {
@@ -105,8 +104,8 @@
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) { tg.expand(); }
 
-        // 🚀 Жесткий HTTPS адрес твоего сервера Render
-        const host = "https://onrender.com";
+        // 🚀 АВТОМАТИЧЕСКИЙ ОПРЕДЕЛИТЕЛЬ: Скрипт сам возьмет правильный адрес сервера!
+        const host = window.location.origin;
         const userId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : "777999"; 
         let currentBalanceTon = 0;
 
