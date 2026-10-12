@@ -87,9 +87,12 @@ app.get('/api/user-balance', async (req, res) => {
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
         
         let balance = 0.0000;
-        // ✓ ИСПРАВЛЕНО: Добавлен строгий индекс [0] для чтения первой строки массива rows
-        if (userCheck.rows.length > 0 && userCheck.rows[0].balance_ton !== null) {
-            balance = parseFloat(userCheck.rows[0].balance_ton);
+        // Чистый и безопасный способ чтения первой строки
+        if (userCheck && userCheck.rows && userCheck.rows.length > 0) {
+            const firstRow = userCheck.rows[0];
+            if (firstRow && firstRow.balance_ton !== null) {
+                balance = parseFloat(firstRow.balance_ton);
+            }
         }
 
         return res.json({
@@ -120,15 +123,22 @@ app.post('/api/withdraw', async (req, res) => {
 
         const userCheck = await pool.query('SELECT balance_ton FROM users WHERE telegram_id = $1', [targetUserId]);
 
-        // ✓ ИСПРАВЛЕНО: Добавлен индекс [0] для проверки баланса
-        if (userCheck.rows.length === 0 || parseFloat(userCheck.rows[0].balance_ton) < withdrawAmount || withdrawAmount < 0.5000) {
+        if (!userCheck || userCheck.rows.length === 0) {
+            return res.status(400).json({ success: false, error: 'Пользователь не найден' });
+        }
+
+        const firstRow = userCheck.rows[0];
+        const userBalance = parseFloat(firstRow.balance_ton);
+
+        if (userBalance < withdrawAmount || withdrawAmount < 0.5000) {
             return res.status(400).json({ success: false, error: 'Недостаточно средств' });
         }
 
-        const newBalance = parseFloat(userCheck.rows[0].balance_ton) - withdrawAmount;
+        const newBalance = userBalance - withdrawAmount;
         await pool.query('UPDATE users SET balance_ton = $1, updated_at = NOW() WHERE telegram_id = $2', [newBalance, targetUserId]);
 
-        await pool.query('INSERT INTO withdrawal_requests (telegram_id, wallet_address, amount_ton, status) VALUES ($1, $2, $3, \'pending\')', [targetUserId, walletAddress, withdrawAmount]);
+        // ИСПРАВЛЕНО: Убрали коварные косые слэши, заменив на чистые двойные кавычки вокруг "pending"
+        await pool.query('INSERT INTO withdrawal_requests (telegram_id, wallet_address, amount_ton, status) VALUES ($1, $2, $3, "pending")', [targetUserId, walletAddress, withdrawAmount]);
 
         console.log('[WITHDRAW REQUEST] ID: ' + targetUserId + ' | TON: ' + withdrawAmount);
         return res.json({ success: true });
